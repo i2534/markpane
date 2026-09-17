@@ -1,0 +1,49 @@
+# Markdown 渲染器 — 与现有 /s/* 静态站对齐
+#
+# 你当前主配置已有：
+#   @static path /s/*
+#   handle @static {
+#       uri strip_prefix /s
+#       root * /usr/share/caddy/static
+#       encode gzip zstd
+#       file_server { browse off }
+#   }
+#
+# → 无需新增 location。把本目录内容部署到静态根下的 md/ 即可。
+
+# ========== 部署 ==========
+#   sudo mkdir -p /usr/share/caddy/static/md
+#   sudo rsync -av --delete \
+#     --exclude Caddyfile \
+#     --exclude '.bak*' \
+#     --exclude '*.map' \
+#     ./ \
+#     /usr/share/caddy/static/md/
+#
+# 访问：https://<域名>/s/md/
+
+# ========== 可选：给 /s/md 加安全头与长缓存 ==========
+# 写在泛匹配 @static 之前：
+#
+#   @md path /s/md /s/md/*
+#   handle @md {
+#       uri strip_prefix /s
+#       root * /usr/share/caddy/static
+#       encode gzip zstd
+#       header {
+#           X-Content-Type-Options nosniff
+#           Referrer-Policy strict-origin-when-cross-origin
+#           X-Frame-Options SAMEORIGIN
+#           Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https: http:; connect-src 'self'; base-uri 'self'; form-action 'self'"
+#       }
+#       @mdAssets path /md/vendor/* /md/css/* /md/js/*
+#       header @mdAssets Cache-Control "public, max-age=604800"
+#       file_server { browse off }
+#   }
+
+# ========== 本地快速试跑 ==========
+:8088 {
+	root * .
+	encode gzip zstd
+	file_server
+}

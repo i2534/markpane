@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Markdown 渲染器</title>
+<!-- PWA：装成应用后可由系统把 .md 关联到本页打开（见 manifest.json 的 file_handlers） -->
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="theme-color" content="#2b579a">
+<link rel="stylesheet" href="vendor/github.min.css" id="lightHljs">
+<link rel="stylesheet" href="vendor/github-dark.min.css" id="darkHljs" disabled>
+<link rel="stylesheet" href="vendor/katex.min.css">
+<link rel="stylesheet" href="css/app.css">
+<script defer src="vendor/marked.min.js"></script>
+<script defer src="vendor/highlight.min.js"></script>
+<script defer src="vendor/katex.min.js"></script>
+<script defer src="vendor/auto-render.min.js"></script>
+<script defer src="vendor/purify.min.js"></script>
+<!-- mermaid 按需懒加载 -->
+</head>
+<body>
+<div class="header" id="appHeader">
+  <h1>📝 Markdown 渲染器</h1>
+  <div class="upload-area" id="headerTools">
+    <span class="file-name" id="fileName">未选择文件</span>
+    <label class="upload-btn" for="file-input" aria-label="打开 Markdown 文件">📂 打开</label>
+    <input type="file" id="file-input" accept=".md,.markdown,.mdown,.txt,.doc,.docx,.docm,.ppt,.pptx,.pptm,.ppsx,.ppsm,.xls,.xlsx,.xlsm,.xlsb,.odt,.ods,.odp,.rtf,.epub,.csv,.pdf">
+    <button type="button" class="tool-btn" id="layoutBtn" title="切换布局" aria-label="切换布局">📐 双栏</button>
+    <button type="button" class="tool-btn" id="themeToggle" title="切换暗黑模式" aria-label="切换暗黑模式">🌙</button>
+    <button type="button" class="tool-btn" id="shortcutsBtn" title="快捷键" aria-label="显示快捷键">⌨️</button>
+  </div>
+  <button type="button" class="fab-toggle" id="fabToggle" title="展开工具栏" aria-expanded="false" aria-controls="headerTools" aria-label="展开工具栏">☰</button>
+</div>
+
+<div class="main-container">
+  <div class="toc-wrap" id="tocWrap">
+    <nav class="toc" id="toc" aria-label="目录">
+      <div class="toc-title">📋 目录
+        <button type="button" class="toc-hide-btn" id="tocHideBtn" title="隐藏目录" aria-label="隐藏目录">✕</button>
+      </div>
+      <div id="tocItems"><p style="font-size:12px;color:var(--text-secondary);opacity:0.7;">打开文件后生成</p></div>
+    </nav>
+    <div class="toc-resize-handle" id="tocResizeHandle" title="拖拽调整目录宽度" aria-hidden="true"></div>
+  </div>
+  <div class="toc-edge" id="tocEdge" title="显示目录" aria-hidden="true">▸</div>
+
+  <div class="panels" id="panels">
+    <div class="panel" id="renderPanel">
+      <div class="panel-header">
+        <span>🖼️ 渲染视图</span>
+        <span class="badge">预览</span>
+        <div class="toolbar">
+          <button type="button" class="tool-btn" id="syncScrollBtn" title="同步滚动" aria-label="同步滚动">🔗 同步</button>
+        </div>
+      </div>
+      <div class="panel-body" id="renderBody" style="position:relative;">
+        <div class="loading-overlay" id="loadingOverlay">
+          <div class="spinner"></div>
+          <div class="loading-text">渲染中...</div>
+        </div>
+        <div class="empty-state" id="emptyState">
+          <div class="icon">📄</div>
+          <p>拖拽或选择 Markdown 文件</p>
+          <p class="hint">支持 .md .markdown .mdown .txt</p>
+        </div>
+        <div id="content" style="display:none;"></div>
+      </div>
+    </div>
+
+    <div class="resize-handle" id="resizeHandle" aria-hidden="true"></div>
+
+    <div class="panel" id="sourcePanel">
+      <div class="panel-header">
+        <span>📄 源码视图</span>
+        <span class="badge">对照</span>
+        <div class="search-box">
+          <input type="text" class="search-input" id="searchInput" placeholder="搜索源码..." aria-label="搜索源码">
+          <span class="search-count" id="searchCount"></span>
+        </div>
+        <div class="toolbar">
+          <button type="button" class="copy-btn" id="copyBtn" title="复制源码" aria-label="复制源码">📋 源码</button>
+          <button type="button" class="copy-btn" id="copyHtmlBtn" title="复制渲染HTML" aria-label="复制渲染 HTML">📋 HTML</button>
+        </div>
+      </div>
+      <div class="panel-body source-panel" id="sourceBody">
+        <div class="empty-state" id="sourceEmpty" style="background:var(--source-bg);color:var(--source-line-num)">
+          <div class="icon">📝</div>
+          <p>源码将在此显示</p>
+        </div>
+        <div id="sourceCode" class="source-virtual-root" style="display:none;" role="list" aria-label="源码行"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="status-bar" role="status">
+  <span class="status-spinner" id="statusSpinner" aria-hidden="true"></span>
+  <span id="statusInfo">✅ 就绪 · 按 Ctrl+O 打开文件</span>
+  <span id="statsInfo"></span>
+</div>
+
+<div class="shortcuts-hint" id="shortcutsHint" role="dialog" aria-label="快捷键说明">
+  <strong>快捷键</strong><br>
+  <kbd>Ctrl</kbd>+<kbd>O</kbd> 打开文件<br>
+  <kbd>Ctrl</kbd>+<kbd>S</kbd> 导出 HTML<br>
+  <kbd>Ctrl</kbd>+<kbd>D</kbd> 切换暗黑模式<br>
+  <kbd>Ctrl</kbd>+<kbd>L</kbd> 切换同步滚动<br>
+  <kbd>Ctrl</kbd>+<kbd>\\</kbd> 切换布局<br>
+  <kbd>?</kbd> 显示/隐藏快捷键<br>
+  <kbd>Enter</kbd> 搜索下一项 / <kbd>Shift</kbd>+<kbd>Enter</kbd> 上一项
+</div>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-hidden="true" aria-label="图片预览">
+  <button type="button" class="lightbox-close" id="lightboxClose" aria-label="关闭图片预览">&times;</button>
+  <img class="lightbox-img" id="lightboxImg" alt="预览">
+</div>
+
+<div class="drop-overlay" id="dropOverlay" aria-hidden="true">松开以打开 Markdown 文件</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
