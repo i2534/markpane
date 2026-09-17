@@ -54,8 +54,9 @@ const DOM = {
   copyHtmlBtn: document.getElementById('copyHtmlBtn'),
   themeToggle: document.getElementById('themeToggle'),
   syncScrollBtn: document.getElementById('syncScrollBtn'),
-  shortcutsBtn: document.getElementById('shortcutsBtn'),
-  shortcutsHint: document.getElementById('shortcutsHint'),
+  aboutBtn: document.getElementById('aboutBtn'),
+  aboutPanel: document.getElementById('aboutPanel'),
+  aboutClose: document.getElementById('aboutClose'),
   lightHljs: document.getElementById('lightHljs'),
   darkHljs: document.getElementById('darkHljs'),
   lightbox: document.getElementById('lightbox'),
@@ -709,6 +710,23 @@ function closeLightbox() {
   lightboxLastFocus = null;
 }
 
+/** 打开/关闭“关于”面板（快捷键说明、项目地址等），并同步 aria 状态 */
+function toggleAboutPanel() {
+  const willShow = !DOM.aboutPanel.classList.contains('show');
+  DOM.aboutPanel.classList.toggle('show', willShow);
+  DOM.aboutPanel.setAttribute('aria-hidden', willShow ? 'false' : 'true');
+  DOM.aboutBtn.setAttribute('aria-expanded', willShow ? 'true' : 'false');
+  if (willShow) DOM.aboutClose.focus();
+}
+
+/** 关闭“关于”面板 */
+function closeAboutPanel() {
+  DOM.aboutPanel.classList.remove('show');
+  DOM.aboutPanel.setAttribute('aria-hidden', 'true');
+  DOM.aboutBtn.setAttribute('aria-expanded', 'false');
+  if (DOM.aboutPanel.contains(document.activeElement)) DOM.aboutBtn.focus();
+}
+
 function setupImageLightbox() {
   DOM.content.querySelectorAll('img').forEach((img) => {
     // 暗色主题：包一层容器用于定位悬停工具条，避免重复包裹
@@ -1169,8 +1187,12 @@ function bindEvents() {
     setLayout(layouts[(idx + 1) % layouts.length], { persist: !narrow });
   });
 
-  DOM.shortcutsBtn.addEventListener('click', () => {
-    DOM.shortcutsHint.classList.toggle('show');
+  DOM.aboutBtn.addEventListener('click', () => {
+    toggleAboutPanel();
+  });
+
+  DOM.aboutClose.addEventListener('click', () => {
+    closeAboutPanel();
   });
 
   DOM.lightboxClose.addEventListener('click', closeLightbox);
@@ -1185,8 +1207,8 @@ function bindEvents() {
   });
 
   document.addEventListener('click', (e) => {
-    if (!DOM.shortcutsHint.contains(e.target) && e.target !== DOM.shortcutsBtn) {
-      DOM.shortcutsHint.classList.remove('show');
+    if (!DOM.aboutPanel.contains(e.target) && e.target !== DOM.aboutBtn) {
+      closeAboutPanel();
     }
   });
 
@@ -1208,6 +1230,10 @@ function bindEvents() {
       closeLightbox();
       return;
     }
+    if (DOM.aboutPanel.classList.contains('show') && e.key === 'Escape') {
+      closeAboutPanel();
+      return;
+    }
     const typing = isTypingTarget(e.target);
     if (e.key === 'Enter' && e.target === DOM.searchInput && state.searchMatchLines.length > 0) {
       navigateSearch(!e.shiftKey);
@@ -1216,7 +1242,7 @@ function bindEvents() {
     }
     if (typing && !(e.ctrlKey || e.metaKey)) return;
     if (e.key === '?') {
-      DOM.shortcutsHint.classList.toggle('show');
+      toggleAboutPanel();
       return;
     }
     if (e.ctrlKey || e.metaKey) {
@@ -1308,7 +1334,7 @@ function init() {
 
   // a11y labels
   DOM.layoutBtn.setAttribute('aria-label', '切换布局');
-  DOM.shortcutsBtn.setAttribute('aria-label', '显示快捷键');
+  DOM.aboutBtn.setAttribute('aria-label', '关于 Markpane');
   DOM.syncScrollBtn.setAttribute('aria-label', '同步滚动');
   DOM.copyBtn.setAttribute('aria-label', '复制源码');
   DOM.copyHtmlBtn.setAttribute('aria-label', '复制渲染 HTML');
@@ -1326,7 +1352,7 @@ function init() {
   initFileHandling((file, opts) => loadFile(file, opts));
   registerServiceWorker();
 
-  setStatus('就绪 · 按 Ctrl+O 打开文件 · 按 ? 查看快捷键');
+  setStatus('就绪 · 按 Ctrl+O 打开文件 · 按 ? 查看关于与快捷键');
 
   // 页面空闲时预热 AnyDoc 引擎（约 6.7MB wasm），首次打开 Office/PDF 免等待
   const warmUp = () => { warmUpAnyDoc(); };

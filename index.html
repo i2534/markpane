@@ -29,7 +29,7 @@
     <input type="file" id="file-input" accept=".md,.markdown,.mdown,.txt,.doc,.docx,.docm,.ppt,.pptx,.pptm,.ppsx,.ppsm,.xls,.xlsx,.xlsm,.xlsb,.odt,.ods,.odp,.rtf,.epub,.csv,.pdf">
     <button type="button" class="tool-btn" id="layoutBtn" title="切换布局" aria-label="切换布局">📐 双栏</button>
     <button type="button" class="tool-btn" id="themeToggle" title="切换暗黑模式" aria-label="切换暗黑模式">🌙</button>
-    <button type="button" class="tool-btn" id="shortcutsBtn" title="快捷键" aria-label="显示快捷键">⌨️</button>
+    <button type="button" class="tool-btn" id="aboutBtn" title="关于 Markpane（快捷键 / 项目地址）" aria-label="关于 Markpane" aria-haspopup="dialog" aria-expanded="false">ℹ️</button>
   </div>
   <button type="button" class="fab-toggle" id="fabToggle" title="展开工具栏" aria-expanded="false" aria-controls="headerTools" aria-label="展开工具栏">☰</button>
 </div>
@@ -97,19 +97,41 @@
 
 <div class="status-bar" role="status">
   <span class="status-spinner" id="statusSpinner" aria-hidden="true"></span>
-  <span id="statusInfo">✅ 就绪 · 按 Ctrl+O 打开文件</span>
+  <span id="statusInfo">✅ 就绪 · 按 Ctrl+O 打开文件 · 按 ? 查看关于与快捷键</span>
   <span id="statsInfo"></span>
 </div>
 
-<div class="shortcuts-hint" id="shortcutsHint" role="dialog" aria-label="快捷键说明">
-  <strong>快捷键</strong><br>
-  <kbd>Ctrl</kbd>+<kbd>O</kbd> 打开文件<br>
-  <kbd>Ctrl</kbd>+<kbd>S</kbd> 导出 HTML<br>
-  <kbd>Ctrl</kbd>+<kbd>D</kbd> 切换暗黑模式<br>
-  <kbd>Ctrl</kbd>+<kbd>L</kbd> 切换同步滚动<br>
-  <kbd>Ctrl</kbd>+<kbd>\\</kbd> 切换布局<br>
-  <kbd>?</kbd> 显示/隐藏快捷键<br>
-  <kbd>Enter</kbd> 搜索下一项 / <kbd>Shift</kbd>+<kbd>Enter</kbd> 上一项
+<div class="about-panel" id="aboutPanel" role="dialog" aria-label="关于 Markpane" aria-hidden="true">
+  <div class="about-head">
+    <strong>ℹ️ 关于 Markpane</strong>
+    <button type="button" class="about-close" id="aboutClose" aria-label="关闭关于面板">✕</button>
+  </div>
+
+  <p class="about-desc">纯前端的文档渲染器：把 Markdown（以及 docx / pdf / pptx / xlsx 等）拖进浏览器就能读，可安装为 PWA、被系统关联为 .md 的默认打开方式。</p>
+
+  <h4>快捷键</h4>
+  <ul class="about-list">
+    <li><kbd>Ctrl</kbd>+<kbd>O</kbd> 打开文件</li>
+    <li><kbd>Ctrl</kbd>+<kbd>S</kbd> 导出 HTML</li>
+    <li><kbd>Ctrl</kbd>+<kbd>D</kbd> 切换暗黑模式</li>
+    <li><kbd>Ctrl</kbd>+<kbd>L</kbd> 切换同步滚动</li>
+    <li><kbd>Ctrl</kbd>+<kbd>\</kbd> 切换布局</li>
+    <li><kbd>?</kbd> 显示/隐藏本面板 · <kbd>Esc</kbd> 关闭</li>
+    <li><kbd>Enter</kbd> 搜索下一项 / <kbd>Shift</kbd>+<kbd>Enter</kbd> 上一项</li>
+  </ul>
+
+  <h4>项目地址</h4>
+  <ul class="about-list">
+    <li>在线使用（GitHub Pages）：<a href="https://i2534.github.io/markpane/" target="_blank" rel="noopener noreferrer">i2534.github.io/markpane</a></li>
+    <li>源码仓库：<a href="https://github.com/i2534/markpane" target="_blank" rel="noopener noreferrer">github.com/i2534/markpane</a></li>
+    <li>问题反馈：<a href="https://github.com/i2534/markpane/issues" target="_blank" rel="noopener noreferrer">Issues</a></li>
+  </ul>
+
+  <h4>其他</h4>
+  <ul class="about-list">
+    <li>隐私：文件全部在浏览器本地处理，不上传服务器</li>
+    <li>依赖：marked 18.0.6 · highlight.js 11.11.1 · KaTeX 0.18.1 · Mermaid 11.16.0 · DOMPurify 3.4.12 · AnyDoc (WASM)</li>
+  </ul>
 </div>
 
 <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-hidden="true" aria-label="图片预览">

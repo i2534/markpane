@@ -19,6 +19,17 @@
 
 部署到任意 HTTPS 静态托管（Caddy / nginx / GitHub Pages …）都行，本目录就是站点根。
 
+## 在线使用
+
+- 在线地址（GitHub Pages）：<https://i2534.github.io/markpane/>
+- 源码仓库：<https://github.com/i2534/markpane>
+- 问题反馈：<https://github.com/i2534/markpane/issues>
+
+Pages 直接以仓库根目录为站点根（含 .nojekyll，无构建步骤），推送到 main 后自动更新；
+线上是 HTTPS，可直接“安装”为 PWA 并使用系统 .md 文件关联。
+
+页面右上角的 ℹ️ 按钮即“关于”，里面汇总了快捷键说明、项目地址与依赖版本。
+
 ## 安装为 PWA 并关联系统 .md
 
 manifest.json 里声明了 file_handlers（text/markdown ← .md / .markdown / .mdown）：
