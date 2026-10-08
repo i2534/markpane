@@ -512,6 +512,7 @@ async function renderMermaidBlocks(force = false) {
       const src = pre.dataset.mermaidSource;
       if (src == null) return;
       pre.classList.remove('mermaid-rendered');
+      pre.classList.remove('mermaid-error-block');
       pre.innerHTML = '';
       const code = document.createElement('code');
       code.className = 'language-mermaid';
@@ -527,13 +528,17 @@ async function renderMermaidBlocks(force = false) {
     startOnLoad: false,
     theme: state.isDark ? 'dark' : 'default',
     securityLevel: 'strict',
+    // 关闭 mermaid 自带的错误图（否则失败时会往 body 里塞一个“Syntax error in text”覆盖界面）
+    suppressErrorRendering: true,
   });
 
   let idCounter = 0;
+  let blockIndex = 0;
   for (const codeBlock of blocks) {
     const pre = codeBlock.parentElement;
     if (!pre || pre.classList.contains('mermaid-rendered')) continue;
     const text = codeBlock.textContent.trim();
+    blockIndex++;
     pre.dataset.mermaidSource = text;
     const graphId = `mermaid-${Date.now()}-${++idCounter}`;
     try {
@@ -547,12 +552,125 @@ async function renderMermaidBlocks(force = false) {
     } catch (e) {
       console.warn('Mermaid 渲染失败:', e);
       pre.classList.add('mermaid-rendered');
-      const errDiv = document.createElement('div');
-      errDiv.className = 'mermaid-error';
-      errDiv.textContent = '图表渲染失败: ' + (typeof e === 'string' ? e : e.message || '未知错误');
-      pre.appendChild(errDiv);
+      // 兜底：旧版本/未生效的 suppressErrorRendering 会留下 #d<graphId> 错误图，直接移除
+      document.getElementById('d' + graphId)?.remove();
+      document.getElementById(graphId)?.remove();
+      renderMermaidError(pre, text, e, findMermaidFenceLine(blockIndex));
     }
   }
+}
+
+/**
+ * 在原文里找第 n（1-based）个 mermaid 围栏所在行号，用于把图块行号换算成文档行号。
+ * @param {number} index
+ * @returns {number} 行号；找不到返回 0
+ */
+function findMermaidFenceLine(index) {
+  if (!index) return 0;
+  const lines = state.rawText.split('\n');
+  let seen = 0;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^\s*(```|~~~)\s*mermaid\b/i.test(lines[i])) {
+      seen++;
+      if (seen === index) return i + 1;
+    }
+  }
+  return 0;
+}
+
+/**
+ * 渲染 Mermaid 语法错误：不猜、不改写用户内容，只把定位信息摊开——
+ * 原始报错 + 出错行（图块行号 / 文档行号）+ 常见原因与建议写法 + 完整图块源码。
+ * @param {HTMLElement} pre 承载图块的 <pre>
+ * @param {string} source 图块原文
+ * @param {unknown} error mermaid 抛出的错误
+ */
+function renderMermaidError(pre, source, error, fenceLine = 0) {
+  const message = String(typeof error === 'string' ? error : (error && error.message) || error || '未知错误');
+  const firstLine = message.split('\n')[0];
+  const parsed = message.match(/Parse error on line (\d+)/i);
+  const blockLine = parsed ? parseInt(parsed[1], 10) : 0;
+  const lines = source.split('\n');
+  const badLine = blockLine >= 1 && blockLine <= lines.length ? lines[blockLine - 1] : '';
+  const docLine = fenceLine && blockLine ? fenceLine + blockLine : 0;
+
+  // 高频原因：[] {} 标签里的 | ( ) 在 Mermaid 里是语法记号，需给标签内容加双引号
+  const hasSpecialInLabel = /\[[^\[\]]*[|()][^\[\]]*\]/.test(badLine);
+  const suggest = hasSpecialInLabel
+    ? badLine.replace(/\[([^\[\]]*)\]/g, (m, inner) => (/[|()]/.test(inner) ? '["' + inner.replace(/"/g, '') + '"]' : m))
+    : '';
+  const hint = hasSpecialInLabel
+    ? '标签 [ ] 里的 | ( ) 是 Mermaid 的语法记号，需要把标签内容用双引号包起来（例如 D["docx|xlsx"]）。'
+    : '常见原因：标签里的 | ( ) 等特殊字符未用双引号包裹，或节点/箭头的写法不符合当前 Mermaid 版本的语法。';
+
+  pre.classList.add('mermaid-error-block');
+  pre.innerHTML = '';
+
+  const box = document.createElement('div');
+  box.className = 'mermaid-error';
+
+  const title = document.createElement('div');
+  title.className = 'mermaid-error-title';
+  title.textContent = '⚠️ 图表渲染失败（Mermaid 语法错误）';
+  box.appendChild(title);
+
+  const msg = document.createElement('div');
+  msg.className = 'mermaid-error-msg';
+  msg.textContent = firstLine;
+  box.appendChild(msg);
+
+  if (badLine) {
+    const loc = document.createElement('div');
+    loc.className = 'mermaid-error-loc';
+    loc.textContent = docLine
+      ? `出错位置：图块第 ${blockLine} 行（文档第 ${docLine} 行）`
+      : `出错位置：图块第 ${blockLine} 行`;
+    box.appendChild(loc);
+
+    const lineEl = document.createElement('div');
+    lineEl.className = 'mermaid-error-line';
+    lineEl.textContent = badLine;
+    box.appendChild(lineEl);
+  }
+
+  const hintEl = document.createElement('div');
+  hintEl.className = 'mermaid-error-hint';
+  hintEl.textContent = '💡 ' + hint;
+  box.appendChild(hintEl);
+
+  if (suggest) {
+    const fix = document.createElement('div');
+    fix.className = 'mermaid-error-fix';
+    fix.append('建议写法：');
+    const fixCode = document.createElement('code');
+    fixCode.textContent = suggest.trim();
+    fix.appendChild(fixCode);
+    box.appendChild(fix);
+  }
+
+  const details = document.createElement('details');
+  details.className = 'mermaid-error-details';
+  const summary = document.createElement('summary');
+  summary.textContent = '查看图块源码';
+  const srcEl = document.createElement('div');
+  srcEl.className = 'mermaid-error-source';
+  srcEl.textContent = source;
+  const copyBtn = document.createElement('button');
+  copyBtn.type = 'button';
+  copyBtn.className = 'mermaid-error-copy';
+  copyBtn.textContent = '复制图块源码';
+  copyBtn.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    navigator.clipboard.writeText(source).then(() => {
+      copyBtn.textContent = '已复制';
+      setTimeout(() => { copyBtn.textContent = '复制图块源码'; }, 1500);
+    }).catch(() => setStatus('复制失败', 'error'));
+  });
+  details.append(summary, copyBtn, srcEl);
+  box.appendChild(details);
+
+  pre.appendChild(box);
+  console.warn(`Mermaid 语法错误定位：图块第 ${blockLine} 行${docLine ? `（文档第 ${docLine} 行）` : ''} - ${firstLine}`);
 }
 
 function assignMapping(el, elIdx, sourceLine, sourceEndLine) {
@@ -672,6 +790,8 @@ function generateToc() {
 function addCopyCodeButtons() {
   DOM.content.querySelectorAll('pre').forEach((pre) => {
     if (pre.querySelector('.copy-code-btn')) return;
+    // 报错块自带“复制图块源码”按钮，避免再注入一个复制不到内容的按钮
+    if (pre.classList.contains('mermaid-error-block')) return;
     const btn = document.createElement('button');
     btn.className = 'copy-code-btn';
     btn.type = 'button';

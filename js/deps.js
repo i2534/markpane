@@ -37,6 +37,7 @@ export function ensureMermaid() {
             startOnLoad: false,
             theme: 'default',
             securityLevel: 'strict',
+            suppressErrorRendering: true,
           });
         } catch (e) {
           console.warn('Mermaid 初始化失败:', e);

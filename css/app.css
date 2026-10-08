@@ -66,6 +66,10 @@
   --success-bg: #1a3a2a;
   --success-border: #34a853;
   --success-text: #34a853;
+  --warning-bg: #3a2f14;
+  --warning-text: #ffd54f;
+  --error-bg: #3a1f22;
+  --error-text: #ff8a80;
   --scrollbar-track: #1a1a2e;
   --scrollbar-thumb: #3a3a5a;
   --scrollbar-thumb-hover: #5a5a7a;
@@ -502,12 +506,72 @@ body {
   background: #0d1117;
   border-color: #1f2328;
 }
+/* Mermaid 语法错误：只读展示（报错 + 出错行 + 文档行号 + 建议写法 + 图块源码） */
+pre.mermaid-error-block {
+  background: transparent;
+  padding: 0;
+  overflow: visible;
+}
 .mermaid-error {
   color: var(--error-text);
   font-size: 12px;
-  padding: 8px;
+  line-height: 1.7;
+  padding: 10px 12px;
   background: var(--error-bg);
+  border-left: 3px solid var(--error-text);
   border-radius: 4px;
+  text-align: left;
+}
+.mermaid-error-title { font-weight: 600; margin-bottom: 4px; }
+.mermaid-error-msg {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+.mermaid-error-loc { margin-top: 6px; color: var(--text); }
+.mermaid-error-line {
+  margin: 4px 0 6px;
+  padding: 6px 8px;
+  background: var(--code-bg);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--text);
+  white-space: pre;
+  overflow-x: auto;
+}
+.mermaid-error-hint { color: var(--text); }
+.mermaid-error-fix { margin-top: 4px; word-break: break-all; }
+.mermaid-error-fix code {
+  background: var(--code-bg);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 11px;
+  color: var(--text);
+}
+.mermaid-error-details { margin-top: 8px; }
+.mermaid-error-details summary { cursor: pointer; color: var(--text-secondary); }
+.mermaid-error-copy {
+  margin-top: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--text);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.mermaid-error-copy:hover { border-color: var(--primary); color: var(--primary); }
+.mermaid-error-source {
+  margin-top: 6px;
+  padding: 8px;
+  max-height: 240px;
+  overflow: auto;
+  background: var(--code-bg);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--text);
+  white-space: pre;
 }
 
 /* KaTeX 暗黑模式 */
