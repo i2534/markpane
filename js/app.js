@@ -1083,6 +1083,29 @@ async function renderMarkdown(text, name, opts = {}) {
   }
 }
 
+/**
+ * mermaid 生成的 SVG 单独做最小清理，不走 DOMPurify：
+ * DOMPurify 在 SVG 命名空间下会删掉 foreignObject 内的 HTML 标签，图上的文字会整块丢失。
+ */
+function sanitizeMermaidSvg(svgHtml) {
+  const tpl = document.createElement('template');
+  tpl.innerHTML = svgHtml;
+  tpl.content.querySelectorAll('script').forEach((el) => el.remove());
+  tpl.content.querySelectorAll('*').forEach((el) => {
+    for (const attr of Array.from(el.attributes)) {
+      const name = attr.name.toLowerCase();
+      const value = (attr.value || '').trim().toLowerCase();
+      if (name.startsWith('on')) {
+        el.removeAttribute(attr.name);
+      } else if ((name === 'href' || name === 'xlink:href' || name === 'src')
+        && /^(javascript:|vbscript:|data:text\/html)/.test(value)) {
+        el.removeAttribute(attr.name);
+      }
+    }
+  });
+  return tpl.content.firstElementChild ? tpl.innerHTML : '';
+}
+
 function getExportableHtml() {
   const clone = DOM.content.cloneNode(true);
   clone.querySelectorAll('.copy-code-btn').forEach((el) => el.remove());
@@ -1094,21 +1117,44 @@ function getExportableHtml() {
     el.removeAttribute('data-mermaid-source');
     el.classList.remove('mermaid-rendered');
   });
-  const html = clone.innerHTML;
-  if (libReady.dompurify) {
-    return DOMPurify.sanitize(html, { ADD_ATTR: ['target'], ADD_TAGS: ['details', 'summary'] });
+
+  // 图块先用占位元素换出，净化其余内容后再原样回填（原因见 sanitizeMermaidSvg）
+  const mermaidSvgs = [];
+  clone.querySelectorAll('.mermaid-container').forEach((el, i) => {
+    mermaidSvgs.push(el.outerHTML);
+    const slot = document.createElement('div');
+    slot.className = 'mermaid-slot';
+    slot.dataset.mermaidSlot = String(i);
+    el.replaceWith(slot);
+  });
+
+  if (!libReady.dompurify) {
+    return `<pre style="white-space:pre-wrap;">${escapeHtml(state.rawText)}</pre>`;
   }
-  return `<pre style="white-space:pre-wrap;">${escapeHtml(state.rawText)}</pre>`;
+  let html = DOMPurify.sanitize(clone.innerHTML, { ADD_ATTR: ['target'], ADD_TAGS: ['details', 'summary'] });
+
+  mermaidSvgs.forEach((svgHtml, i) => {
+    const slotPattern = new RegExp(`<div[^>]*data-mermaid-slot="${i}"[^>]*></div>`);
+    html = html.replace(slotPattern, sanitizeMermaidSvg(svgHtml));
+  });
+  return html;
 }
+
+/** 导出页主题变量：跟随导出时的应用主题（浅色 / 暗色） */
+const EXPORT_THEME_VARS = {
+  light: ':root { color-scheme: light; --bg: #fff; --text: #333; --border: #eee; --code-bg: #f6f8fa; --link: #1a73e8; --quote-bg: #f8f9fa; --quote-text: #555; --cell-border: #e0e0e0; --th-bg: #f6f8fa; }',
+  dark: ':root { color-scheme: dark; --bg: #1a1a2e; --text: #e0e0e0; --border: #2a2a4a; --code-bg: #1c2333; --link: #4a9eff; --quote-bg: #1c2333; --quote-text: #aaa; --cell-border: #2a2a4a; --th-bg: #1c2333; }',
+};
 
 async function exportHTML() {
   if (!state.rawText) { setStatus('没有可导出的内容', 'warning'); return; }
   const htmlContent = getExportableHtml();
+  const dark = state.isDark;
   let hljsCss = '';
   let katexCss = '';
   try {
     const [a, b] = await Promise.all([
-      fetch('vendor/github.min.css').then((r) => (r.ok ? r.text() : '')),
+      fetch(dark ? 'vendor/github-dark.min.css' : 'vendor/github.min.css').then((r) => (r.ok ? r.text() : '')),
       fetch('vendor/katex.min.css').then((r) => (r.ok ? r.text() : '')),
     ]);
     hljsCss = a;
@@ -1120,24 +1166,27 @@ async function exportHTML() {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="${dark ? 'dark' : 'light'}">
 <title>Markdown 导出</title>
 <style>
+${EXPORT_THEME_VARS[dark ? 'dark' : 'light']}
 ${hljsCss}
 ${katexCss}
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.7; color: #333; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-sizing: border-box; width: 100%; max-width: 1100px; margin: 0 auto; padding: clamp(20px, 4vw, 48px) clamp(16px, 5vw, 56px); line-height: 1.7; background: var(--bg); color: var(--text); }
 h1, h2, h3 { margin-top: 24px; margin-bottom: 12px; }
-h1 { border-bottom: 2px solid #eee; padding-bottom: 8px; }
-h2 { border-bottom: 1px solid #eee; padding-bottom: 4px; }
-code { background: #f6f8fa; padding: 2px 5px; border-radius: 3px; font-size: 13px; }
-pre { background: #f6f8fa; padding: 14px; border-radius: 6px; overflow-x: auto; margin-bottom: 14px; }
+h1 { border-bottom: 2px solid var(--border); padding-bottom: 8px; }
+h2 { border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+code { background: var(--code-bg); padding: 2px 5px; border-radius: 3px; font-size: 13px; }
+pre { background: var(--code-bg); padding: 14px; border-radius: 6px; overflow-x: auto; margin-bottom: 14px; }
 pre code { background: none; padding: 0; }
-blockquote { border-left: 4px solid #1a73e8; padding: 6px 14px; margin: 14px 0; background: #f8f9fa; color: #555; }
+blockquote { border-left: 4px solid var(--link); padding: 6px 14px; margin: 14px 0; background: var(--quote-bg); color: var(--quote-text); }
 table { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
-th, td { border: 1px solid #e0e0e0; padding: 6px 10px; }
-th { background: #f6f8fa; font-weight: 600; }
+th, td { border: 1px solid var(--cell-border); padding: 6px 10px; }
+th { background: var(--th-bg); font-weight: 600; }
 img { max-width: 100%; border-radius: 4px; }
-a { color: #1a73e8; }
-hr { border: none; border-top: 2px solid #eee; margin: 20px 0; }
+svg { max-width: 100%; height: auto; }
+a { color: var(--link); }
+hr { border: none; border-top: 2px solid var(--border); margin: 20px 0; }
 .mermaid-container { text-align: center; margin: 14px 0; }
 </style>
 </head>
@@ -1269,24 +1318,22 @@ function bindEvents() {
       DOM.copyBtn.textContent = '✅ 已复制';
       DOM.copyBtn.classList.add('copied');
       setTimeout(() => {
-        DOM.copyBtn.textContent = '📋 源码';
+        DOM.copyBtn.textContent = '📋 复制';
         DOM.copyBtn.classList.remove('copied');
       }, 2000);
       setStatus('源码已复制到剪贴板', 'success');
     }).catch(() => setStatus('复制失败', 'error'));
   });
 
-  DOM.copyHtmlBtn.addEventListener('click', () => {
-    if (!state.renderedHtml) { setStatus('没有可复制的内容', 'warning'); return; }
-    navigator.clipboard.writeText(getExportableHtml()).then(() => {
-      DOM.copyHtmlBtn.textContent = '✅ 已复制';
-      DOM.copyHtmlBtn.classList.add('copied');
-      setTimeout(() => {
-        DOM.copyHtmlBtn.textContent = '📋 HTML';
-        DOM.copyHtmlBtn.classList.remove('copied');
-      }, 2000);
-      setStatus('HTML 已复制到剪贴板', 'success');
-    }).catch(() => setStatus('复制失败', 'error'));
+  DOM.copyHtmlBtn.addEventListener('click', async () => {
+    if (!state.rawText) { setStatus('没有可导出的内容', 'warning'); return; }
+    await exportHTML();
+    DOM.copyHtmlBtn.textContent = '✅ 已导出';
+    DOM.copyHtmlBtn.classList.add('copied');
+    setTimeout(() => {
+      DOM.copyHtmlBtn.textContent = '📥 导出 HTML';
+      DOM.copyHtmlBtn.classList.remove('copied');
+    }, 2000);
   });
 
   DOM.themeToggle.addEventListener('click', toggleTheme);
@@ -1457,7 +1504,7 @@ function init() {
   DOM.aboutBtn.setAttribute('aria-label', '关于 Markpane');
   DOM.syncScrollBtn.setAttribute('aria-label', '同步滚动');
   DOM.copyBtn.setAttribute('aria-label', '复制源码');
-  DOM.copyHtmlBtn.setAttribute('aria-label', '复制渲染 HTML');
+  DOM.copyHtmlBtn.setAttribute('aria-label', '导出为 HTML 文件');
   DOM.fabToggle?.setAttribute('aria-label', '展开工具栏');
   DOM.lightbox.setAttribute('role', 'dialog');
   DOM.lightbox.setAttribute('aria-modal', 'true');
